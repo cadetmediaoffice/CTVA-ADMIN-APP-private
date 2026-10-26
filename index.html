@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CTVA 2026 — Admin | Cadet Media Ghana</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{
+  font-family:'Barlow',Arial,sans-serif;
+  background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);
+  min-height:100vh;color:#fff;padding:20px;
+}
+.wrap{max-width:980px;margin:0 auto;}
+h1{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:clamp(22px,4vw,32px);color:#FFD700;letter-spacing:.5px;}
+.sub{opacity:.65;font-size:13px;margin-top:6px;}
+
+#loginView{max-width:360px;margin:80px auto;text-align:center;}
+#loginView .lock{font-size:44px;margin-bottom:14px;}
+#loginView input{
+  width:100%;padding:13px 16px;border-radius:11px;margin-top:18px;
+  border:1.5px solid rgba(255,215,0,0.2);background:rgba(255,255,255,0.06);
+  color:#fff;font-size:16px;text-align:center;letter-spacing:2px;outline:none;
+}
+#loginView input:focus{border-color:#FFD700;}
+#loginView button{
+  width:100%;margin-top:14px;padding:13px;border:none;border-radius:11px;
+  background:linear-gradient(45deg,#FFD700,#e6a800);color:#000;font-weight:800;
+  font-size:15px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;letter-spacing:1px;
+}
+#loginErr{color:#ff8080;font-size:13px;margin-top:12px;display:none;}
+
+#dashView{display:none;}
+.tabs{display:flex;gap:8px;margin:24px 0 20px;flex-wrap:wrap;}
+.tab-btn{
+  background:rgba(255,255,255,0.05);border:1.5px solid rgba(255,215,0,0.15);color:rgba(255,255,255,0.6);
+  padding:9px 18px;border-radius:20px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;
+  font-size:14px;font-weight:700;letter-spacing:.5px;
+}
+.tab-btn.active{background:linear-gradient(45deg,#FFD700,#e6a800);color:#000;border-color:transparent;}
+.pane{display:none;}
+.pane.active{display:block;}
+
+.card-row{
+  background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);
+  border-radius:14px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+}
+.card-row img{width:48px;height:48px;border-radius:8px;object-fit:cover;background:rgba(255,255,255,0.08);flex-shrink:0;}
+.card-row .ph{width:48px;height:48px;border-radius:8px;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font-weight:700;color:rgba(255,255,255,0.4);flex-shrink:0;}
+.card-row .info{flex:1;min-width:160px;}
+.card-row .rname{font-weight:700;font-size:15px;}
+.card-row .rmeta{opacity:.55;font-size:12px;margin-top:2px;}
+.card-row .rcode{font-size:11px;color:#FFD700;margin-top:3px;}
+.card-row .rvotes{font-size:13px;color:#9fd8ff;white-space:nowrap;}
+.card-row .actions{display:flex;gap:8px;align-items:center;}
+.card-row button{border:none;border-radius:8px;padding:9px 14px;font-size:12px;font-weight:700;cursor:pointer;text-transform:uppercase;font-family:'Barlow Condensed',sans-serif;letter-spacing:.5px;}
+.approve-btn{background:#00e676;color:#000;}
+.reject-btn{background:transparent;border:1px solid #ff5252 !important;color:#ff8080;}
+.code-input{width:90px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:9px 10px;border-radius:8px;font-size:13px;}
+.status-pill{font-size:10px;padding:4px 10px;border-radius:20px;text-transform:uppercase;font-weight:700;letter-spacing:.5px;}
+.status-pill.pending{background:rgba(255,215,0,.15);color:#FFD700;}
+.status-pill.approved{background:rgba(0,230,118,.15);color:#00e676;}
+.status-pill.rejected{background:rgba(255,82,82,.15);color:#ff8080;}
+.empty{opacity:.5;text-align:center;padding:40px 0;font-size:13px;}
+
+.log-controls{display:flex;gap:14px;align-items:flex-end;margin-bottom:20px;flex-wrap:wrap;}
+.log-controls label{display:block;font-size:11px;letter-spacing:1px;color:#FFD700;text-transform:uppercase;margin-bottom:6px;}
+.log-controls input[type=date]{background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:10px 12px;border-radius:8px;}
+.save-log-btn{background:linear-gradient(45deg,#FFD700,#e6a800);color:#000;border:none;padding:12px 22px;border-radius:10px;font-weight:800;cursor:pointer;font-family:'Barlow Condensed',sans-serif;letter-spacing:.5px;}
+.cat-group{margin-bottom:24px;}
+.cat-group h3{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;color:#FFD700;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;}
+.votes-input{width:100px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:9px 10px;border-radius:8px;font-size:13px;}
+.score-input{width:80px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:9px 10px;border-radius:8px;font-size:13px;}
+.save-score-btn{background:#00e676;color:#000;border:none;padding:9px 14px;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px;text-transform:uppercase;font-family:'Barlow Condensed',sans-serif;}
+.log-status{margin-top:16px;padding:12px 16px;border-radius:10px;font-size:14px;display:none;}
+.log-status.ok{display:block;background:rgba(0,230,118,.12);border:1px solid rgba(0,230,118,.35);color:#80ffb0;}
+.log-status.err{display:block;background:rgba(255,82,82,.12);border:1px solid rgba(255,82,82,.35);color:#ff9090;}
+
+.export-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+.export-bar select{background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:10px 12px;border-radius:8px;font-size:13px;max-width:100%;}
+.export-bar select option{color:#000;}
+.ex-btn{border:none;border-radius:8px;padding:10px 16px;font-weight:800;cursor:pointer;background:linear-gradient(45deg,#FFD700,#e6a800);color:#0f3460;font-family:'Barlow Condensed',sans-serif;letter-spacing:.5px;text-transform:uppercase;font-size:13px;}
+.ex-btn:disabled{opacity:.5;cursor:wait;}
+table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
+.ex-table th{text-align:left;padding:9px 8px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#FFD700;border-bottom:1px solid rgba(255,255,255,0.2);}
+.ex-table td{padding:8px;border-bottom:1px solid rgba(255,255,255,0.08);vertical-align:middle;}
+.ex-table img,.ex-table .ex-ph{width:46px;height:56px;object-fit:cover;border-radius:6px;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font-weight:700;}
+.ex-table img{display:block;}
+@media print{
+  body{background:#fff !important;color:#000 !important;}
+  body *{visibility:hidden;}
+  #exportArea,#exportArea *{visibility:visible;}
+  #exportArea{position:absolute;left:0;top:0;width:100%;}
+  .ex-table th{color:#000 !important;border-bottom:1px solid #000;}
+  .ex-table td{border-bottom:1px solid #bbb;color:#000;}
+  .ex-table tr{page-break-inside:avoid;}
+}
+</style>
+<meta name="robots" content="noindex,nofollow">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f3460">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="CTVA Admin">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+</head>
+<body>
+
+<div class="wrap">
+  <div id="loginView">
+    <div class="lock">🔐</div>
+    <h1>CTVA 2026 Admin</h1>
+    <p class="sub">Nominee approval, voting results &amp; judges' scores</p>
+    <input type="password" id="pwInput" placeholder="Admin password">
+    <button id="loginBtn">Enter</button>
+    <div id="loginErr">Incorrect password.</div>
+  </div>
+
+  <div id="dashView">
+    <h1>CTVA 2026 Admin</h1>
+    <p class="sub">Nominee approval, voting results &amp; judges' scores</p>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="pending">Pending</button>
+      <button class="tab-btn" data-tab="approved">Approved</button>
+      <button class="tab-btn" data-tab="rejected">Rejected</button>
+      <button class="tab-btn" data-tab="logvotes">Log Votes</button>
+      <button class="tab-btn" data-tab="judgescores">Judges' Scores</button>
+      <button class="tab-btn" data-tab="export">Export</button>
+      <button class="tab-btn" data-tab="ticker">Ticker</button>
+    </div>
+
+    <div class="pane active" id="pane-list">
+      <div id="listEl"><div class="empty">Loading…</div></div>
+    </div>
+
+    <div class="pane" id="pane-logvotes">
+      <div class="log-controls">
+        <div>
+          <label for="logDate">Date</label>
+          <input type="date" id="logDate">
+        </div>
+        <button class="save-log-btn" id="saveLogBtn">Save Results</button>
+      </div>
+      <div id="logGroups"></div>
+      <div class="log-status" id="logStatus"></div>
+    </div>
+
+    <div class="pane" id="pane-ticker">
+      <p style="opacity:.7;font-size:13px;margin-bottom:10px;">Messages that scroll across the top of the home page. One message per line (up to 20, 160 characters each). Changes go live as soon as you save.</p>
+      <textarea id="tkText" rows="8" style="width:100%;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:12px;border-radius:10px;font-size:14px;font-family:inherit;" placeholder="Voting opens 4 November 2026&#10;Dial *920*703# to vote&#10;Voting closes 9 December 2026"></textarea>
+      <label style="display:flex;gap:8px;align-items:center;margin:12px 0;font-size:14px;"><input type="checkbox" id="tkOn" checked> Show the scrolling text on the home page</label>
+      <button class="ex-btn" id="tkSave">Save ticker</button>
+      <div class="log-status" id="tkMsg"></div>
+    </div>
+
+    <div class="pane" id="pane-export">
+      <div class="export-bar">
+        <select id="exCat"><option value="">All categories</option></select>
+        <select id="exStatus">
+          <option value="">All (except rejected)</option>
+          <option value="approved">Approved only</option>
+          <option value="coded">With voting code only</option>
+        </select>
+        <button class="ex-btn" id="exCsv">Download Excel/CSV</button>
+        <button class="ex-btn" id="exPrint">Print / Save as PDF</button>
+        <button class="ex-btn" id="exZip">Download photos (ZIP)</button>
+      </div>
+      <div class="log-status" id="exStatusMsg"></div>
+      <div id="exportArea"></div>
+    </div>
+
+    <div class="pane" id="pane-judgescores">
+      <div id="judgeGroups"></div>
+      <div class="log-status" id="judgeStatus"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+  // ⚠️ Same Apps Script Web App URL as tv_awards_register.html:
+  const API_URL = 'https://script.google.com/macros/s/AKfycbxfTkqqjtjXLXekfT-fODrdU-F3SzroDSCogLnOcICh1ImtKeLKFJK7Xb6f2K4jsQ0/exec';
+
+  const CATEGORIES = [
+    'Best International News Anchor','Best International News Reporter','Best International News Producer',
+    'Best Local News Anchor','Best Local News Reporter','Best Local News Producer',
+    'Best Sports News Anchor','Best Sports News Reporter','Best Sports News Producer',
+    'Best Entertainment News Anchor','Best Entertainment News Reporter','Best Entertainment News Producer',
+    'Best Weather Presenter','Best Weather Reporter','Best Weather Producer'
+  ];
+
+  let password = '';
+  function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+  let allNominees = [];
+  let currentTab = 'pending';
+
+  const loginView = document.getElementById('loginView');
+  const dashView = document.getElementById('dashView');
+  const pwInput = document.getElementById('pwInput');
+  const loginBtn = document.getElementById('loginBtn');
+  const loginErr = document.getElementById('loginErr');
+  const listEl = document.getElementById('listEl');
+
+  async function api(action, extra = {}){
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action, password, ...extra })
+    });
+    return res.json();
+  }
+
+  loginBtn.addEventListener('click', doLogin);
+  pwInput.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+  async function doLogin(){
+    if (API_URL.includes('PASTE_YOUR')) {
+      loginErr.style.display = 'block';
+      loginErr.textContent = 'Backend URL not configured yet.';
+      return;
+    }
+    password = pwInput.value;
+    loginBtn.disabled = true;
+    loginBtn.textContent = 'Checking…';
+    try {
+      const data = await api('adminLogin');
+      if (data.status === 'ok') {
+        loginView.style.display = 'none';
+        dashView.style.display = 'block';
+        loadAll();
+      } else {
+        loginErr.style.display = 'block';
+      }
+    } catch (err) {
+      loginErr.style.display = 'block';
+      loginErr.textContent = 'Network error — please try again.';
+    } finally {
+      loginBtn.disabled = false;
+      loginBtn.textContent = 'Enter';
+    }
+  }
+
+  async function loadAll(){
+    listEl.innerHTML = '<div class="empty">Loading…</div>';
+    const data = await api('getAllAdmin');
+    allNominees = data.nominees || [];
+    render();
+    renderLogGroups();
+    renderJudgeGroups();
+  }
+
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentTab = btn.dataset.tab;
+      document.getElementById('pane-list').classList.remove('active');
+      document.getElementById('pane-logvotes').classList.remove('active');
+      document.getElementById('pane-judgescores').classList.remove('active');
+      document.getElementById('pane-export').classList.remove('active');
+      document.getElementById('pane-ticker').classList.remove('active');
+      if (currentTab === 'ticker') {
+        document.getElementById('pane-ticker').classList.add('active');
+        loadTicker();
+      } else if (currentTab === 'export') {
+        document.getElementById('pane-export').classList.add('active');
+        renderExport();
+      } else if (currentTab === 'logvotes') {
+        document.getElementById('pane-logvotes').classList.add('active');
+      } else if (currentTab === 'judgescores') {
+        document.getElementById('pane-judgescores').classList.add('active');
+      } else {
+        document.getElementById('pane-list').classList.add('active');
+        render();
+      }
+    });
+  });
+
+  async function approveAllPending(){
+    const c = allNominees.filter(n => n.status === 'pending').length;
+    if (!c || !confirm('Approve all ' + c + ' pending nominees?')) return;
+    const data = await api('bulkApprovePending');
+    if (data.status === 'ok') { await loadAll(); } else { alert(data.message || 'Failed'); }
+  }
+
+  function render(){
+    const items = allNominees.filter(n => n.status === currentTab);
+    listEl.innerHTML = '';
+    if (currentTab === 'pending' && items.length) {
+      const b = document.createElement('button');
+      b.className = 'approve-btn';
+      b.style.cssText = 'margin-bottom:14px;padding:10px 18px;';
+      b.textContent = 'Approve all ' + items.length + ' pending';
+      b.addEventListener('click', approveAllPending);
+      listEl.appendChild(b);
+    }
+    if (items.length === 0) {
+      listEl.innerHTML = `<div class="empty">No ${currentTab} nominees.</div>`;
+      return;
+    }
+    items.forEach(n => {
+      const row = document.createElement('div');
+      row.className = 'card-row';
+      const photoHtml = n.photoUrl
+        ? `<img src="${esc(n.photoUrl)}" alt="" onerror="this.outerHTML='<div class=&quot;ph&quot;>${(n.name||'?').charAt(0).toUpperCase()}</div>'">`
+        : `<div class="ph">${(n.name||'?').charAt(0).toUpperCase()}</div>`;
+
+      let actionsHtml = `<span class="status-pill ${n.status}">${n.status}</span>`;
+      if (currentTab === 'pending') {
+        actionsHtml = `
+          <div class="actions">
+            <input class="code-input" type="text" placeholder="Voting code (optional)" id="code-${n.ref}">
+            <button class="approve-btn" data-ref="${n.ref}" data-act="approveNominee">Approve</button>
+            <button class="reject-btn" data-ref="${n.ref}" data-act="rejectNominee">Reject</button>
+          </div>`;
+      }
+
+      if (currentTab === 'approved') {
+        actionsHtml = `
+          <div class="actions">
+            <input class="code-input" type="text" placeholder="Voting code" id="code-${n.ref}" value="${(n.naloCode||'').replace(/"/g,'&quot;')}">
+            <button class="approve-btn" data-ref="${n.ref}" data-act="setNaloCode">Save code</button>
+            <button class="reject-btn" data-ref="${n.ref}" data-act="rejectNominee">Reject</button>
+          </div>`;
+      }
+      const codeHtml = n.status === 'approved' && n.naloCode ? `<div class="rcode">Voting code: ${esc(n.naloCode)}</div>` : '';
+
+      row.innerHTML = `
+        ${photoHtml}
+        <div class="info">
+          <div class="rname">${esc(n.name)}</div>
+          <div class="rmeta">${esc(n.category)} · ${esc(n.school || '')}</div>
+          ${codeHtml}
+        </div>
+        <div class="rvotes">${n.status === 'approved' ? n.votes + ' votes' : ''}</div>
+        ${actionsHtml}
+      `;
+      listEl.appendChild(row);
+    });
+
+    listEl.querySelectorAll('button[data-act]').forEach(btn => {
+      btn.addEventListener('click', () => handleAction(btn));
+    });
+  }
+
+  async function handleAction(btn){
+    const ref = btn.dataset.ref;
+    const act = btn.dataset.act;
+    let extra = { ref };
+
+    if (act === 'approveNominee' || act === 'setNaloCode') {
+      const codeInput = document.getElementById('code-' + ref);
+      extra.naloCode = codeInput ? codeInput.value.trim() : '';
+    }
+
+    btn.disabled = true;
+    const data = await api(act, extra);
+    if (data.status === 'ok') {
+      const nom = allNominees.find(n => n.ref === ref);
+      if (nom) {
+        if (act === 'approveNominee') nom.status = 'approved';
+        if (act === 'rejectNominee') nom.status = 'rejected';
+        if (act === 'approveNominee' || act === 'setNaloCode') { if (extra.naloCode || act === 'setNaloCode') nom.naloCode = extra.naloCode; }
+      }
+      if (act === 'setNaloCode') btn.textContent = 'Saved ✓';
+      render();
+      renderLogGroups();
+      renderJudgeGroups();
+    } else {
+      alert(data.message || 'Action failed.');
+      btn.disabled = false;
+    }
+  }
+
+
+  // ---- Ticker tab ----
+  async function loadTicker(){
+    const msg = document.getElementById('tkMsg');
+    try {
+      const d = await api('getTicker');
+      document.getElementById('tkText').value = (d.items || []).join('\n');
+      document.getElementById('tkOn').checked = d.enabled !== false;
+      msg.textContent = '';
+    } catch (e) { msg.textContent = 'Could not load the ticker.'; }
+  }
+  document.getElementById('tkSave').addEventListener('click', async () => {
+    const msg = document.getElementById('tkMsg'), btn = document.getElementById('tkSave');
+    const items = document.getElementById('tkText').value.split('\n').map(x => x.trim()).filter(Boolean);
+    btn.disabled = true; msg.textContent = 'Saving…';
+    try {
+      const d = await api('setTicker', { items, enabled: document.getElementById('tkOn').checked });
+      msg.textContent = d.status === 'ok' ? 'Saved — ' + d.count + ' message(s) are live on the home page.' : (d.message || 'Save failed.');
+    } catch (e) { msg.textContent = 'Network error — try again.'; }
+    btn.disabled = false;
+  });
+
+  // ---- Export tab ----
+  const exCat = document.getElementById('exCat');
+  CATEGORIES.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; exCat.appendChild(o); });
+  const exStatus = document.getElementById('exStatus');
+  const exMsg = document.getElementById('exStatusMsg');
+  const exEsc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  function exportList(){
+    const cat = exCat.value, st = exStatus.value;
+    const order = c => { const i = CATEGORIES.indexOf(c); return i === -1 ? 99 : i; };
+    return allNominees
+      .filter(n => n.status !== 'rejected')
+      .filter(n => !cat || n.category === cat)
+      .filter(n => st === 'approved' ? n.status === 'approved' : st === 'coded' ? !!n.naloCode : true)
+      .sort((a, b) => order(a.category) - order(b.category) || String(a.name).localeCompare(String(b.name)));
+  }
+  function exPhotoName(n){ return (n.category + ' - ' + n.name).replace(/[\\\/:*?"<>|]/g, '') + '.jpg'; }
+  function exPhotoId(url){ const m = String(url || '').match(/\/d\/([\w-]+)|[?&]id=([\w-]+)/); return m ? (m[1] || m[2]) : ''; }
+
+  function renderExport(){
+    const list = exportList();
+    if (!list.length) { document.getElementById('exportArea').innerHTML = '<div class="empty">No nominees match.</div>'; return; }
+    const rows = list.map((n, i) => {
+      const id = exPhotoId(n.photoUrl);
+      const letter = exEsc((n.name || '?').charAt(0).toUpperCase());
+      const photo = id
+        ? `<img src="${exEsc(n.photoUrl)}" alt="" referrerpolicy="no-referrer" onerror="if(!this.dataset.t){this.dataset.t=1;this.src='https://lh3.googleusercontent.com/d/${id}=w200';}else{this.outerHTML='<div class=&quot;ex-ph&quot;>${letter}</div>';}">`
+        : `<div class="ex-ph">${letter}</div>`;
+      return `<tr><td>${i + 1}</td><td>${photo}</td><td><b>${exEsc(n.name)}</b></td><td>${exEsc(n.school || '')}</td><td>${exEsc(n.category)}</td><td><b>${n.naloCode ? exEsc(n.naloCode) : '—'}</b></td></tr>`;
+    }).join('');
+    document.getElementById('exportArea').innerHTML =
+      '<h3 style="font-family:\'Barlow Condensed\',sans-serif;color:#FFD700;margin:0 0 8px;">Cadet TV Personality Awards 2026 — Nominees (' + list.length + ')</h3>' +
+      '<table class="ex-table"><thead><tr><th>#</th><th>Photo</th><th>Name</th><th>School</th><th>Category</th><th>Voting Code</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+  exCat.addEventListener('change', renderExport);
+  exStatus.addEventListener('change', renderExport);
+  document.getElementById('exPrint').addEventListener('click', () => { renderExport(); setTimeout(() => window.print(), 400); });
+
+  function csvRows(list){
+    const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+    const head = ['No.', 'Name', 'School', 'Category', 'Voting Code', 'Photo File Name', 'Reference', 'Status'];
+    const lines = [head.map(q).join(',')];
+    list.forEach((n, i) => lines.push([i + 1, n.name, n.school || '', n.category, n.naloCode || '', exPhotoId(n.photoUrl) ? exPhotoName(n) : 'NO PHOTO', n.ref, n.status].map(q).join(',')));
+    return '\ufeff' + lines.join('\r\n');
+  }
+  function saveBlob(blob, name){
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  }
+  document.getElementById('exCsv').addEventListener('click', () => {
+    const list = exportList();
+    if (!list.length) return;
+    saveBlob(new Blob([csvRows(list)], { type: 'text/csv;charset=utf-8' }), 'CTVA-2026-nominees.csv');
+  });
+
+  // Photos come from the backend (getPhotos) because Drive images can't be read directly by the browser.
+  document.getElementById('exZip').addEventListener('click', async () => {
+    const btn = document.getElementById('exZip');
+    const list = exportList().filter(n => exPhotoId(n.photoUrl));
+    if (!list.length) { exMsg.textContent = 'No photos to download.'; return; }
+    if (typeof JSZip === 'undefined') { exMsg.textContent = 'ZIP tool failed to load — check your internet and refresh.'; return; }
+    btn.disabled = true;
+    const zip = new JSZip();
+    let done = 0, missing = 0;
+    try {
+      for (let i = 0; i < list.length; i += 10) {
+        const batch = list.slice(i, i + 10);
+        exMsg.textContent = 'Getting photos… ' + done + ' of ' + list.length;
+        const ids = batch.map(n => exPhotoId(n.photoUrl));
+        const data = await api('getPhotos', { ids });
+        const photos = data.photos || {};
+        batch.forEach(n => {
+          const d = photos[exPhotoId(n.photoUrl)];
+          if (d && d.indexOf('base64,') !== -1) {
+            const ext = d.indexOf('image/png') === 5 ? '.png' : '.jpg';
+            zip.file(exPhotoName(n).replace(/\.jpg$/, ext), d.split('base64,')[1], { base64: true });
+            done++;
+          } else missing++;
+        });
+      }
+      zip.file('nominees.csv', csvRows(exportList()));
+      exMsg.textContent = 'Packing ZIP…';
+      const blob = await zip.generateAsync({ type: 'blob' });
+      saveBlob(blob, 'CTVA-2026-nominee-photos.zip');
+      exMsg.textContent = 'Done — ' + done + ' photos saved' + (missing ? ', ' + missing + ' could not be fetched (re-run fixPhotoSharing in Apps Script if many).' : '.');
+    } catch (e) {
+      exMsg.textContent = 'Could not build the ZIP: ' + e.message;
+    }
+    btn.disabled = false;
+  });
+
+  // ---- Log Votes tab ----
+  function renderLogGroups(){
+    const groupsEl = document.getElementById('logGroups');
+    groupsEl.innerHTML = '';
+    const approved = allNominees.filter(n => n.status !== 'rejected');
+    if (approved.length === 0) {
+      groupsEl.innerHTML = '<div class="empty">No approved nominees yet — approve some first.</div>';
+      return;
+    }
+    CATEGORIES.forEach(cat => {
+      const nominees = approved.filter(n => n.category === cat);
+      if (nominees.length === 0) return;
+      const group = document.createElement('div');
+      group.className = 'cat-group';
+      group.innerHTML = `<h3>${esc(cat)}</h3>` + nominees.map(n => `
+        <div class="card-row">
+          <div class="info">
+            <div class="rname">${esc(n.name)}</div>
+            <div class="rmeta">Voting code: ${n.naloCode || '—'} · current: ${n.votes}</div>
+          </div>
+          <input class="votes-input" type="number" min="0" placeholder="Votes" data-vote-ref="${n.ref}">
+        </div>
+      `).join('');
+      groupsEl.appendChild(group);
+    });
+
+    const dateInput = document.getElementById('logDate');
+    if (!dateInput.value) {
+      dateInput.value = new Date().toISOString().split('T')[0];
+    }
+  }
+
+  document.getElementById('saveLogBtn').addEventListener('click', async () => {
+    const date = document.getElementById('logDate').value;
+    const logStatus = document.getElementById('logStatus');
+    logStatus.className = 'log-status';
+
+    if (!date) {
+      logStatus.className = 'log-status err';
+      logStatus.textContent = 'Pick a date first.';
+      return;
+    }
+
+    const entries = [];
+    document.querySelectorAll('[data-vote-ref]').forEach(input => {
+      if (input.value !== '') entries.push({ ref: input.dataset.voteRef, votes: Number(input.value) });
+    });
+
+    if (entries.length === 0) {
+      logStatus.className = 'log-status err';
+      logStatus.textContent = 'Enter at least one vote count.';
+      return;
+    }
+
+    const btn = document.getElementById('saveLogBtn');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    try {
+      const data = await api('logVotes', { date, entries });
+      if (data.status === 'ok') {
+        logStatus.className = 'log-status ok';
+        logStatus.textContent = `Saved results for ${data.updated} nominee(s) on ${date}.`;
+        await loadAll();
+        document.querySelectorAll('[data-vote-ref]').forEach(input => input.value = '');
+      } else {
+        logStatus.className = 'log-status err';
+        logStatus.textContent = data.message || 'Could not save results.';
+      }
+    } catch (err) {
+      logStatus.className = 'log-status err';
+      logStatus.textContent = 'Network error — please try again.';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Save Results';
+    }
+  });
+
+  // ---- Judges' Scores tab ----
+  function renderJudgeGroups(){
+    const groupsEl = document.getElementById('judgeGroups');
+    groupsEl.innerHTML = '';
+    const approved = allNominees.filter(n => n.status !== 'rejected');
+    if (approved.length === 0) {
+      groupsEl.innerHTML = '<div class="empty">No approved nominees yet — approve some first.</div>';
+      return;
+    }
+    CATEGORIES.forEach(cat => {
+      const nominees = approved.filter(n => n.category === cat);
+      if (nominees.length === 0) return;
+      const group = document.createElement('div');
+      group.className = 'cat-group';
+      group.innerHTML = `<h3>${esc(cat)}</h3>` + nominees.map(n => `
+        <div class="card-row">
+          <div class="info">
+            <div class="rname">${esc(n.name)}</div>
+            <div class="rmeta">Current score: ${n.judgeScore === null || n.judgeScore === undefined ? 'Not yet scored' : n.judgeScore + '/100'}</div>
+          </div>
+          <input class="score-input" type="number" min="0" max="100" placeholder="0-100" id="score-${n.ref}" value="${n.judgeScore ?? ''}">
+          <button class="save-score-btn" data-ref="${n.ref}">Save</button>
+        </div>
+      `).join('');
+      groupsEl.appendChild(group);
+    });
+
+    groupsEl.querySelectorAll('.save-score-btn').forEach(btn => {
+      btn.addEventListener('click', () => saveJudgeScore(btn));
+    });
+  }
+
+  async function saveJudgeScore(btn){
+    const ref = btn.dataset.ref;
+    const input = document.getElementById('score-' + ref);
+    const score = Number(input.value);
+    const judgeStatus = document.getElementById('judgeStatus');
+    judgeStatus.className = 'log-status';
+
+    if (input.value === '' || isNaN(score) || score < 0 || score > 100) {
+      judgeStatus.className = 'log-status err';
+      judgeStatus.textContent = 'Enter a score from 0 to 100.';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    try {
+      const data = await api('setJudgeScore', { ref, score });
+      if (data.status === 'ok') {
+        const nom = allNominees.find(n => n.ref === ref);
+        if (nom) nom.judgeScore = score;
+        judgeStatus.className = 'log-status ok';
+        judgeStatus.textContent = `Saved score for ${nom ? nom.name : ref}.`;
+        renderJudgeGroups();
+      } else {
+        judgeStatus.className = 'log-status err';
+        judgeStatus.textContent = data.message || 'Could not save score.';
+      }
+    } catch (err) {
+      judgeStatus.className = 'log-status err';
+      judgeStatus.textContent = 'Network error — please try again.';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Save';
+    }
+  }
+</script>
+<script>if('serviceWorker' in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('sw.js').catch(()=>{});</script>
+</body>
+</html>
