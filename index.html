@@ -409,12 +409,12 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
   const exSchool = document.getElementById('exSchool');
   // The three real schools. Any spelling that contains the keyword counts as that school.
   const SCHOOLS = [
-    { key: 'blessed',  kw: ['blessed', 'kwabena'],  label: 'Blessed Home School & Crèche' },
-    { key: 'covenant', kw: ['covenant'], label: 'Covenant Presbyterian School' },
-    { key: 'heritage', kw: ['heritage'], label: 'South Heritage School' }
+    { key: 'blessed',  kw: ['blessed'], loc: ['kwaben'],  label: 'Blessed Home School & Crèche' },
+    { key: 'covenant', kw: ['covenant', 'presby'], loc: ['dzowulu'], label: 'Covenant Presbyterian School' },
+    { key: 'heritage', kw: ['heritag'], loc: ['ablekuma'], label: 'South Heritage School' }
   ];
   const plain = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
-  const schoolKey = s => { const p = plain(s); const m = SCHOOLS.find(x => x.kw.some(k => p.includes(k))); return m ? m.key : (p ? 'other:' + p : 'other:'); };
+  const schoolKey = s => { const p = plain(s); const m = SCHOOLS.find(x => x.kw.some(k => p.includes(k))) || SCHOOLS.find(x => x.loc.some(k => p.includes(k))); return m ? m.key : (p ? 'other:' + p : 'other:'); };
   const schoolLabel = s => { const m = SCHOOLS.find(x => x.key === schoolKey(s)); return m ? m.label : (String(s || '').trim().replace(/\s+/g, ' ') || 'No school'); };
   const exSafe = s => String(s).replace(/[\\\/:*?"<>|]/g, '').trim();
   function populateSchools(){
