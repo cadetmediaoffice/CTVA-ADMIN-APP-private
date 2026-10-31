@@ -407,21 +407,26 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
   const exEsc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
   const exSchool = document.getElementById('exSchool');
-  const schoolKey = s => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
-  const schoolLabel = s => String(s || '').trim().replace(/\s+/g, ' ') || 'No school';
+  // The three real schools. Any spelling that contains the keyword counts as that school.
+  const SCHOOLS = [
+    { key: 'blessed',  kw: ['blessed', 'kwabena'],  label: 'Blessed Home School & Crèche' },
+    { key: 'covenant', kw: ['covenant'], label: 'Covenant Presbyterian School' },
+    { key: 'heritage', kw: ['heritage'], label: 'South Heritage School' }
+  ];
+  const plain = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const schoolKey = s => { const p = plain(s); const m = SCHOOLS.find(x => x.kw.some(k => p.includes(k))); return m ? m.key : (p ? 'other:' + p : 'other:'); };
+  const schoolLabel = s => { const m = SCHOOLS.find(x => x.key === schoolKey(s)); return m ? m.label : (String(s || '').trim().replace(/\s+/g, ' ') || 'No school'); };
   const exSafe = s => String(s).replace(/[\\\/:*?"<>|]/g, '').trim();
   function populateSchools(){
     const keep = exSchool.value;
-    const seen = new Map();
-    allNominees.filter(n => n.status !== 'rejected').forEach(n => {
-      const k = schoolKey(n.school);
-      if (!seen.has(k)) seen.set(k, { label: schoolLabel(n.school), count: 0 });
-      seen.get(k).count++;
-    });
-    const opts = [...seen.entries()].sort((a, b) => a[1].label.localeCompare(b[1].label));
-    exSchool.innerHTML = '<option value="">All schools (' + opts.length + ')</option>' +
-      opts.map(([k, v]) => '<option value="' + exEsc(k) + '">' + exEsc(v.label) + ' (' + v.count + ')</option>').join('');
-    exSchool.value = seen.has(keep) ? keep : '';
+    const live = allNominees.filter(n => n.status !== 'rejected');
+    const count = k => live.filter(n => schoolKey(n.school) === k).length;
+    let html = '<option value="">All schools</option>' +
+      SCHOOLS.map(x => '<option value="' + x.key + '">' + exEsc(x.label) + ' (' + count(x.key) + ')</option>').join('');
+    const others = live.filter(n => schoolKey(n.school).indexOf('other:') === 0);
+    if (others.length) html += '<option value="__other">Other / unrecognised (' + others.length + ')</option>';
+    exSchool.innerHTML = html;
+    exSchool.value = [...exSchool.options].some(o => o.value === keep) ? keep : '';
   }
   function exSchoolName(){ return exSchool.value ? exSchool.options[exSchool.selectedIndex].textContent.replace(/\s*\(\d+\)$/, '') : ''; }
 
@@ -430,7 +435,7 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
     const order = c => { const i = CATEGORIES.indexOf(c); return i === -1 ? 99 : i; };
     return allNominees
       .filter(n => n.status !== 'rejected')
-      .filter(n => !sch || schoolKey(n.school) === sch)
+      .filter(n => !sch || (sch === '__other' ? schoolKey(n.school).indexOf('other:') === 0 : schoolKey(n.school) === sch))
       .filter(n => !cat || n.category === cat)
       .filter(n => st === 'approved' ? n.status === 'approved' : st === 'coded' ? !!n.naloCode : true)
       .sort((a, b) => schoolLabel(a.school).localeCompare(schoolLabel(b.school)) || order(a.category) - order(b.category) || String(a.name).localeCompare(String(b.name)));
@@ -448,7 +453,7 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
       const photo = id
         ? `<img src="${exEsc(n.photoUrl)}" alt="" referrerpolicy="no-referrer" onerror="if(!this.dataset.t){this.dataset.t=1;this.src='https://lh3.googleusercontent.com/d/${id}=w200';}else{this.outerHTML='<div class=&quot;ex-ph&quot;>${letter}</div>';}">`
         : `<div class="ex-ph">${letter}</div>`;
-      return `<tr><td>${i + 1}</td><td>${photo}</td><td><b>${exEsc(n.name)}</b></td><td>${exEsc(n.school || '')}</td><td>${exEsc(n.category)}</td><td><b>${n.naloCode ? exEsc(n.naloCode) : '—'}</b></td></tr>`;
+      return `<tr><td>${i + 1}</td><td>${photo}</td><td><b>${exEsc(n.name)}</b></td><td>${exEsc(schoolLabel(n.school))}</td><td>${exEsc(n.category)}</td><td><b>${n.naloCode ? exEsc(n.naloCode) : '—'}</b></td></tr>`;
     }).join('');
     document.getElementById('exportArea').innerHTML =
       '<h3 style="font-family:\'Barlow Condensed\',sans-serif;color:#FFD700;margin:0 0 8px;">Cadet TV Personality Awards 2026 — Nominees' + (exSchool.value ? ' — ' + exEsc(exSchoolName()) : '') + ' (' + list.length + ')</h3>' +
@@ -463,7 +468,7 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
     const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
     const head = ['No.', 'Name', 'School', 'Category', 'Voting Code', 'Photo File Name', 'Reference', 'Status'];
     const lines = [head.map(q).join(',')];
-    list.forEach((n, i) => lines.push([i + 1, n.name, n.school || '', n.category, n.naloCode || '', exPhotoId(n.photoUrl) ? exPhotoName(n) : 'NO PHOTO', n.ref, n.status].map(q).join(',')));
+    list.forEach((n, i) => lines.push([i + 1, n.name, schoolLabel(n.school), n.category, n.naloCode || '', exPhotoId(n.photoUrl) ? exPhotoName(n) : 'NO PHOTO', n.ref, n.status].map(q).join(',')));
     return '\ufeff' + lines.join('\r\n');
   }
   function saveBlob(blob, name){
