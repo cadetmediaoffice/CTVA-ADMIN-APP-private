@@ -158,6 +158,7 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
 
     <div class="pane" id="pane-export">
       <div class="export-bar">
+        <select id="exSchool"><option value="">All schools</option></select>
         <select id="exCat"><option value="">All categories</option></select>
         <select id="exStatus">
           <option value="">All (except rejected)</option>
@@ -405,19 +406,40 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
   const exMsg = document.getElementById('exStatusMsg');
   const exEsc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
+  const exSchool = document.getElementById('exSchool');
+  const schoolKey = s => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  const schoolLabel = s => String(s || '').trim().replace(/\s+/g, ' ') || 'No school';
+  const exSafe = s => String(s).replace(/[\\\/:*?"<>|]/g, '').trim();
+  function populateSchools(){
+    const keep = exSchool.value;
+    const seen = new Map();
+    allNominees.filter(n => n.status !== 'rejected').forEach(n => {
+      const k = schoolKey(n.school);
+      if (!seen.has(k)) seen.set(k, { label: schoolLabel(n.school), count: 0 });
+      seen.get(k).count++;
+    });
+    const opts = [...seen.entries()].sort((a, b) => a[1].label.localeCompare(b[1].label));
+    exSchool.innerHTML = '<option value="">All schools (' + opts.length + ')</option>' +
+      opts.map(([k, v]) => '<option value="' + exEsc(k) + '">' + exEsc(v.label) + ' (' + v.count + ')</option>').join('');
+    exSchool.value = seen.has(keep) ? keep : '';
+  }
+  function exSchoolName(){ return exSchool.value ? exSchool.options[exSchool.selectedIndex].textContent.replace(/\s*\(\d+\)$/, '') : ''; }
+
   function exportList(){
-    const cat = exCat.value, st = exStatus.value;
+    const cat = exCat.value, st = exStatus.value, sch = exSchool.value;
     const order = c => { const i = CATEGORIES.indexOf(c); return i === -1 ? 99 : i; };
     return allNominees
       .filter(n => n.status !== 'rejected')
+      .filter(n => !sch || schoolKey(n.school) === sch)
       .filter(n => !cat || n.category === cat)
       .filter(n => st === 'approved' ? n.status === 'approved' : st === 'coded' ? !!n.naloCode : true)
-      .sort((a, b) => order(a.category) - order(b.category) || String(a.name).localeCompare(String(b.name)));
+      .sort((a, b) => schoolLabel(a.school).localeCompare(schoolLabel(b.school)) || order(a.category) - order(b.category) || String(a.name).localeCompare(String(b.name)));
   }
   function exPhotoName(n){ return (n.category + ' - ' + n.name).replace(/[\\\/:*?"<>|]/g, '') + '.jpg'; }
   function exPhotoId(url){ const m = String(url || '').match(/\/d\/([\w-]+)|[?&]id=([\w-]+)/); return m ? (m[1] || m[2]) : ''; }
 
   function renderExport(){
+    populateSchools();
     const list = exportList();
     if (!list.length) { document.getElementById('exportArea').innerHTML = '<div class="empty">No nominees match.</div>'; return; }
     const rows = list.map((n, i) => {
@@ -429,9 +451,10 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
       return `<tr><td>${i + 1}</td><td>${photo}</td><td><b>${exEsc(n.name)}</b></td><td>${exEsc(n.school || '')}</td><td>${exEsc(n.category)}</td><td><b>${n.naloCode ? exEsc(n.naloCode) : '—'}</b></td></tr>`;
     }).join('');
     document.getElementById('exportArea').innerHTML =
-      '<h3 style="font-family:\'Barlow Condensed\',sans-serif;color:#FFD700;margin:0 0 8px;">Cadet TV Personality Awards 2026 — Nominees (' + list.length + ')</h3>' +
+      '<h3 style="font-family:\'Barlow Condensed\',sans-serif;color:#FFD700;margin:0 0 8px;">Cadet TV Personality Awards 2026 — Nominees' + (exSchool.value ? ' — ' + exEsc(exSchoolName()) : '') + ' (' + list.length + ')</h3>' +
       '<table class="ex-table"><thead><tr><th>#</th><th>Photo</th><th>Name</th><th>School</th><th>Category</th><th>Voting Code</th></tr></thead><tbody>' + rows + '</tbody></table>';
   }
+  exSchool.addEventListener('change', renderExport);
   exCat.addEventListener('change', renderExport);
   exStatus.addEventListener('change', renderExport);
   document.getElementById('exPrint').addEventListener('click', () => { renderExport(); setTimeout(() => window.print(), 400); });
@@ -452,7 +475,7 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
   document.getElementById('exCsv').addEventListener('click', () => {
     const list = exportList();
     if (!list.length) return;
-    saveBlob(new Blob([csvRows(list)], { type: 'text/csv;charset=utf-8' }), 'CTVA-2026-nominees.csv');
+    saveBlob(new Blob([csvRows(list)], { type: 'text/csv;charset=utf-8' }), 'CTVA-2026-nominees' + (exSchool.value ? ' - ' + exSafe(exSchoolName()) : ' - All schools') + '.csv');
   });
 
   // Photos come from the backend (getPhotos) because Drive images can't be read directly by the browser.
@@ -475,7 +498,9 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
           const d = photos[exPhotoId(n.photoUrl)];
           if (d && d.indexOf('base64,') !== -1) {
             const ext = d.indexOf('image/png') === 5 ? '.png' : '.jpg';
-            zip.file(exPhotoName(n).replace(/\.jpg$/, ext), d.split('base64,')[1], { base64: true });
+            const fname = exPhotoName(n).replace(/\.jpg$/, ext);
+            // All schools -> one folder per school; single school -> flat
+            zip.file(exSchool.value ? fname : exSafe(schoolLabel(n.school)) + '/' + fname, d.split('base64,')[1], { base64: true });
             done++;
           } else missing++;
         });
@@ -483,7 +508,7 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
       zip.file('nominees.csv', csvRows(exportList()));
       exMsg.textContent = 'Packing ZIP…';
       const blob = await zip.generateAsync({ type: 'blob' });
-      saveBlob(blob, 'CTVA-2026-nominee-photos.zip');
+      saveBlob(blob, 'CTVA-2026-photos - ' + (exSchool.value ? exSafe(exSchoolName()) : 'All schools') + '.zip');
       exMsg.textContent = 'Done — ' + done + ' photos saved' + (missing ? ', ' + missing + ' could not be fetched (re-run fixPhotoSharing in Apps Script if many).' : '.');
     } catch (e) {
       exMsg.textContent = 'Could not build the ZIP: ' + e.message;
