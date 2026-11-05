@@ -403,11 +403,34 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
   // Same school = same key, ignoring case, extra/odd spaces (incl. non-breaking), punctuation, accents and a leading "The".
   const schoolKey = x => String(x || '').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[\u00a0\u200b-\u200d\ufeff]/g,' ').toLowerCase().replace(/&/g,' and ').replace(/[^a-z0-9]+/g,' ').trim().replace(/^the /,'').replace(/ /g,'');
   const tidyName = x => String(x || '').replace(/[\u00a0\u200b-\u200d\ufeff]/g,' ').replace(/\s+/g,' ').trim();
-  // Give every nominee of the same school one identical, tidy school name (prefers the properly capitalised spelling).
+  // Words that don't identify a school, and short forms people type (so "Covenant Presby Sch" = "Covenant Presbyterian School").
+  const SCH_SKIP = {school:1, sch:1, the:1, and:1, of:1};
+  const SCH_ABBR = {st:'saint', mt:'mount', intl:'international', int:'international', prep:'preparatory', pres:'presbyterian', presby:'presbyterian', pressy:'presbyterian', meth:'methodist', cath:'catholic', rc:'roman', ame:'ame'};
+  function schTokens(x){
+    return String(x || '').normalize('NFKD').replace(/[̀-ͯ]/g,'').replace(/[ ​-‍﻿]/g,' ').toLowerCase()
+      .replace(/[^a-z0-9]+/g,' ').trim().split(' ').filter(w => w && !SCH_SKIP[w]).map(w => SCH_ABBR[w] || w);
+  }
+  // Two names are the same school when they have the same words and each word is equal or a shortened form of the other (presby / presbyterian).
+  function sameSchool(a, b){
+    if (a.length !== b.length || !a.length) return false;
+    return a.every((w, i) => { const v = b[i]; if (w === v) return true; const s = w.length < v.length ? w : v, l = w.length < v.length ? v : w; return s.length >= 4 && l.indexOf(s) === 0; });
+  }
+  // Give every nominee of the same school one identical, tidy school name (prefers the fullest, properly capitalised spelling).
   function unifySchools(){
-    const best = {};
-    allNominees.forEach(n => { if (!n.school) return; const k = schoolKey(n.school), v = tidyName(n.school); const c = best[k]; if (!c || (c === c.toLowerCase() && v !== v.toLowerCase()) || (c === c.toUpperCase() && v !== v.toUpperCase() && c.length >= v.length)) best[k] = v; });
-    allNominees.forEach(n => { if (n.school) n.school = best[schoolKey(n.school)]; });
+    const groups = [];
+    allNominees.forEach(n => {
+      if (!n.school) return;
+      const t = schTokens(n.school), name = tidyName(n.school);
+      let g = groups.find(g => sameSchool(g.t, t));
+      if (!g) { g = { t: t, names: [] }; groups.push(g); }
+      g.names.push(name);
+      if (t.join('').length > g.t.join('').length) g.t = t;
+    });
+    groups.forEach(g => {
+      const count = {}; g.names.forEach(v => count[v] = (count[v] || 0) + 1);
+      g.best = Object.keys(count).sort((x, y) => (y !== y.toLowerCase()) - (x !== x.toLowerCase()) || y.length - x.length || count[y] - count[x])[0];
+    });
+    allNominees.forEach(n => { if (!n.school) return; const t = schTokens(n.school); const g = groups.find(g => sameSchool(g.t, t)); if (g) n.school = g.best; });
   }
   // Rebuild the school dropdown from the real nominee list (keeps the current choice).
   function fillSchools(){
