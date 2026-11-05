@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="robots" content="noindex, nofollow">
 <title>CTVA 2026 — Admin | Cadet Media Ghana</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
@@ -240,6 +241,7 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
     listEl.innerHTML = '<div class="empty">Loading…</div>';
     const data = await api('getAllAdmin');
     allNominees = data.nominees || [];
+    unifySchools();
     render();
     renderLogGroups();
     renderJudgeGroups();
@@ -398,12 +400,20 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
   const exEsc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
   const exSchool = document.getElementById('exSchool');
-  const schoolKey = x => String(x || '').trim().toLowerCase();
+  // Same school = same key, ignoring case, extra/odd spaces (incl. non-breaking), punctuation, accents and a leading "The".
+  const schoolKey = x => String(x || '').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[\u00a0\u200b-\u200d\ufeff]/g,' ').toLowerCase().replace(/&/g,' and ').replace(/[^a-z0-9]+/g,' ').trim().replace(/^the /,'').replace(/ /g,'');
+  const tidyName = x => String(x || '').replace(/[\u00a0\u200b-\u200d\ufeff]/g,' ').replace(/\s+/g,' ').trim();
+  // Give every nominee of the same school one identical, tidy school name (prefers the properly capitalised spelling).
+  function unifySchools(){
+    const best = {};
+    allNominees.forEach(n => { if (!n.school) return; const k = schoolKey(n.school), v = tidyName(n.school); const c = best[k]; if (!c || (c === c.toLowerCase() && v !== v.toLowerCase()) || (c === c.toUpperCase() && v !== v.toUpperCase() && c.length >= v.length)) best[k] = v; });
+    allNominees.forEach(n => { if (n.school) n.school = best[schoolKey(n.school)]; });
+  }
   // Rebuild the school dropdown from the real nominee list (keeps the current choice).
   function fillSchools(){
     const keep = exSchool.value;
     const seen = {};
-    allNominees.filter(n => n.status !== 'rejected' && n.school).forEach(n => { const k = schoolKey(n.school), v = String(n.school).trim(); if (!seen[k] || (seen[k] === seen[k].toLowerCase() && v !== v.toLowerCase())) seen[k] = v; });
+    allNominees.filter(n => n.status !== 'rejected' && n.school).forEach(n => { seen[schoolKey(n.school)] = n.school; });
     const names = Object.keys(seen).sort().map(k => seen[k]);
     exSchool.innerHTML = '<option value="">All schools</option>' + names.map(n => '<option value="' + exEsc(schoolKey(n)) + '">' + exEsc(n) + '</option>').join('');
     if (keep && seen[keep]) exSchool.value = keep;
