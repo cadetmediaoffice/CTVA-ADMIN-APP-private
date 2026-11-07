@@ -5,6 +5,12 @@
 <meta name="robots" content="noindex, nofollow">
 <title>CTVA 2026 — Admin | Cadet Media Ghana</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f3460">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="CTVA Admin">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -88,6 +94,13 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
 .ex-table td{padding:8px;border-bottom:1px solid rgba(255,255,255,0.08);vertical-align:middle;}
 .ex-table img,.ex-table .ex-ph{width:46px;height:56px;object-fit:cover;border-radius:6px;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font-weight:700;}
 .ex-table img{display:block;}
+.alert-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:16px 0 0;}
+.alert-bar .ghost{background:rgba(255,255,255,0.1);color:#fff;}
+#alertState{font-size:12.5px;opacity:.75;}
+.alert-info{margin-top:12px;background:rgba(255,215,0,0.07);border:1px solid rgba(255,215,0,0.3);border-radius:12px;padding:14px 16px;font-size:13.5px;line-height:1.7;}
+.alert-info ol{margin:6px 0 10px 20px;}
+.alert-info .topic{display:inline-block;font-family:monospace;font-size:15px;background:rgba(0,0,0,0.35);border-radius:8px;padding:6px 10px;margin:4px 0;color:#FFD700;word-break:break-all;}
+#newToast{position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:99;background:linear-gradient(45deg,#FFD700,#e6a800);color:#0f3460;font-weight:800;padding:12px 20px;border-radius:30px;box-shadow:0 8px 28px rgba(0,0,0,.45);cursor:pointer;font-family:'Barlow Condensed',sans-serif;letter-spacing:.5px;font-size:15px;display:none;max-width:92vw;text-align:center;}
 @media print{
   body{background:#fff !important;color:#000 !important;}
   body *{visibility:hidden;}
@@ -101,6 +114,7 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
 </head>
 <body>
 
+<div id="newToast"></div>
 <div class="wrap">
   <div id="loginView">
     <div class="lock">🔐</div>
@@ -114,6 +128,22 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
   <div id="dashView">
     <h1>CTVA 2026 Admin</h1>
     <p class="sub">Nominee approval, Nalo voting results &amp; judges' scores</p>
+
+    <div class="alert-bar">
+      <button class="ex-btn" id="alertBtn">🔔 Enable alerts</button>
+      <button class="ex-btn ghost" id="alertInfoBtn">📲 Alerts when app is closed</button>
+      <span id="alertState"></span>
+    </div>
+    <div class="alert-info" id="alertInfo" hidden>
+      <b>Phone / laptop alerts even when this app is closed</b> (free, uses the ntfy app):
+      <ol>
+        <li>Install the free <b>ntfy</b> app (Android / iPhone), or open <b>ntfy.sh</b> in your laptop browser.</li>
+        <li>Tap <b>Subscribe to topic</b> and enter this private topic name:<br><span class="topic" id="alertTopic">loading…</span></li>
+        <li>Allow notifications. Every new registration will then ring your phone.</li>
+      </ol>
+      <button class="ex-btn" id="alertTest">Send a test alert</button> <span id="alertTestMsg" style="font-size:12.5px;opacity:.8;"></span>
+      <div style="font-size:12px;opacity:.65;margin-top:8px;">Alerts only say that a registration is waiting. They never contain names or photos. Keep the topic name private: anyone who knows it can read the alerts.</div>
+    </div>
 
     <div class="tabs">
       <button class="tab-btn active" data-tab="pending">Pending</button>
@@ -245,7 +275,131 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
     render();
     renderLogGroups();
     renderJudgeGroups();
+    processList(allNominees);
   }
+
+  // ───────── Alerts for new registrations ─────────
+  // Checks the sheet every 30 s (and when you return to the app). Anything pending that you have not seen
+  // before rings: a notification (if allowed), a beep, a number on the app icon and a banner.
+  const SEEN_KEY = 'ctvaSeenRefs', ALERT_KEY = 'ctvaAlertsOn';
+  let seen = new Set(), firstRun = true, flashTimer = null, baseTitle = document.title;
+  try { const raw = localStorage.getItem(SEEN_KEY); if (raw) { seen = new Set(JSON.parse(raw)); firstRun = false; } } catch (e) {}
+  const saveSeen = () => { try { localStorage.setItem(SEEN_KEY, JSON.stringify(Array.from(seen))); } catch (e) {} };
+
+  function pendingCount(){ return allNominees.filter(n => n.status === 'pending').length; }
+  function updateBadge(){
+    const n = pendingCount();
+    const tab = document.querySelector('.tab-btn[data-tab="pending"]');
+    if (tab) tab.textContent = n ? 'Pending (' + n + ')' : 'Pending';
+    if (!flashTimer) document.title = (n ? '(' + n + ') ' : '') + baseTitle;
+    try { if (navigator.setAppBadge) { n ? navigator.setAppBadge(n) : navigator.clearAppBadge(); } } catch (e) {}
+  }
+  function beep(){
+    try {
+      const C = window.AudioContext || window.webkitAudioContext; if (!C) return;
+      const ctx = new C(), t = ctx.currentTime;
+      [880, 1175].forEach((f, i) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = f; o.connect(g); g.connect(ctx.destination);
+        g.gain.setValueAtTime(0.0001, t + i * 0.18); g.gain.exponentialRampToValueAtTime(0.25, t + i * 0.18 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.18 + 0.16);
+        o.start(t + i * 0.18); o.stop(t + i * 0.18 + 0.18); });
+    } catch (e) {}
+  }
+  function showToast(text){
+    const t = document.getElementById('newToast'); t.textContent = text; t.style.display = 'block';
+    clearTimeout(showToast.tm); showToast.tm = setTimeout(() => { t.style.display = 'none'; }, 12000);
+  }
+  document.getElementById('newToast').addEventListener('click', () => {
+    document.getElementById('newToast').style.display = 'none';
+    const b = document.querySelector('.tab-btn[data-tab="pending"]'); if (b) b.click();
+  });
+  async function systemNotify(title, body){
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    const opts = { body, icon: 'icon-192.png', badge: 'icon-192.png', tag: 'ctva-new', renotify: true, vibrate: [200, 100, 200], data: { url: './' } };
+    try {
+      const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
+      if (reg) { await reg.showNotification(title, opts); return; }
+    } catch (e) {}
+    try { new Notification(title, opts); } catch (e) {}
+  }
+  function notifyNew(fresh){
+    const one = fresh.length === 1 ? fresh[0] : null;
+    const title = one ? 'New registration' : fresh.length + ' new registrations';
+    const body = one ? (one.name + ' — ' + one.category + (one.school ? ' (' + one.school + ')' : '')) : 'Waiting for your approval';
+    showToast('🔔 ' + title + ': ' + body + '  — tap to review');
+    if (localStorage.getItem(ALERT_KEY) !== 'off') { beep(); systemNotify(title, body); }
+    if (document.hidden && !flashTimer) {
+      let on = false;
+      flashTimer = setInterval(() => { on = !on; document.title = on ? '🔔 ' + title : baseTitle; if (!document.hidden) { clearInterval(flashTimer); flashTimer = null; updateBadge(); } }, 1000);
+    }
+  }
+  // Compare a fresh list with what has been seen; alert on anything new and pending.
+  function processList(list){
+    const fresh = list.filter(n => n.status === 'pending' && !seen.has(n.ref));
+    list.forEach(n => seen.add(n.ref));
+    saveSeen();
+    if (firstRun) { firstRun = false; }          // very first visit on this device: just remember, don't ring
+    else if (fresh.length) notifyNew(fresh);
+    updateBadge();
+  }
+  async function softRefresh(){
+    if (dashView.style.display !== 'block') return;
+    try {
+      const data = await api('getAllAdmin');
+      if (data.status !== 'ok') return;
+      allNominees = data.nominees || [];
+      unifySchools();
+      processList(allNominees);
+      // Redraw the lists only when that cannot disturb what you are typing.
+      const el = document.activeElement;
+      if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+      if (currentTab === 'logvotes' || currentTab === 'judgescores' || currentTab === 'ticker') return;
+      if (currentTab === 'export') renderExport(); else render();
+    } catch (e) {}
+  }
+  setInterval(softRefresh, 30000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) softRefresh(); });
+  window.addEventListener('focus', softRefresh);
+
+  // ── Alert buttons ──
+  const alertBtn = document.getElementById('alertBtn'), alertState = document.getElementById('alertState');
+  function paintAlertState(){
+    if (!('Notification' in window)) { alertState.textContent = 'This browser cannot show notifications.'; alertBtn.style.display = 'none'; return; }
+    const p = Notification.permission, off = localStorage.getItem(ALERT_KEY) === 'off';
+    if (p === 'granted' && !off) { alertBtn.textContent = '🔔 Alerts ON — tap to mute'; alertState.textContent = 'You will be alerted when a new registration arrives (while this app is open).'; }
+    else if (p === 'granted' && off) { alertBtn.textContent = '🔕 Alerts muted — tap to turn on'; alertState.textContent = ''; }
+    else if (p === 'denied') { alertBtn.textContent = '🔕 Alerts blocked'; alertState.textContent = 'Notifications are blocked. Allow them for this site in your browser/phone settings, then reload.'; }
+    else { alertBtn.textContent = '🔔 Enable alerts'; alertState.textContent = ''; }
+  }
+  alertBtn.addEventListener('click', async () => {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'granted') {
+      const off = localStorage.getItem(ALERT_KEY) === 'off';
+      try { localStorage.setItem(ALERT_KEY, off ? 'on' : 'off'); } catch (e) {}
+      if (off) { beep(); systemNotify('Alerts are on', 'You will be told about every new registration.'); }
+    } else if (Notification.permission === 'default') {
+      try { localStorage.setItem(ALERT_KEY, 'on'); } catch (e) {}
+      const r = await Notification.requestPermission();
+      if (r === 'granted') { beep(); systemNotify('Alerts are on', 'You will be told about every new registration.'); }
+    }
+    paintAlertState();
+  });
+  paintAlertState();
+
+  // Free phone push (ntfy) that works even when the app is closed.
+  let alertTopicLoaded = false;
+  document.getElementById('alertInfoBtn').addEventListener('click', async () => {
+    const box = document.getElementById('alertInfo'); box.hidden = !box.hidden;
+    if (box.hidden || alertTopicLoaded) return;
+    try {
+      const d = await api('getAlertInfo');
+      document.getElementById('alertTopic').textContent = d.status === 'ok' ? d.topic : (d.message || 'Update Code.gs in Apps Script first (see notes).');
+      alertTopicLoaded = d.status === 'ok';
+    } catch (e) { document.getElementById('alertTopic').textContent = 'Could not load — check your connection.'; }
+  });
+  document.getElementById('alertTest').addEventListener('click', async () => {
+    const m = document.getElementById('alertTestMsg'); m.textContent = 'Sending…';
+    try { const d = await api('testAlert'); m.textContent = d.status === 'ok' ? 'Sent — check your phone.' : (d.message || 'Failed.'); }
+    catch (e) { m.textContent = 'Network error.'; }
+  });
 
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -689,6 +843,9 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
       btn.textContent = 'Save';
     }
   }
+
+  // Installable app + notification support.
+  if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); }); }
 </script>
 </body>
 </html>
