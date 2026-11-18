@@ -874,9 +874,9 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
         <div class="card-row">
           <div class="info">
             <div class="rname">${n.name}</div>
-            <div class="rmeta">Current score: ${n.judgeScore === null || n.judgeScore === undefined ? 'Not yet scored' : n.judgeScore + '/100'}</div>
+            <div class="rmeta">Current score: ${n.judgeScore === null || n.judgeScore === undefined ? 'Not yet scored' : n.judgeScore + '/70'}</div>
           </div>
-          <input class="score-input" type="number" min="0" max="100" placeholder="0-100" id="score-${n.ref}" value="${n.judgeScore ?? ''}">
+          <input class="score-input" type="number" min="0" max="70" placeholder="0-70" id="score-${n.ref}" value="${n.judgeScore ?? ''}">
           <button class="save-score-btn" data-ref="${n.ref}">Save</button>
         </div>
       `).join('');
@@ -895,9 +895,9 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
     const judgeStatus = document.getElementById('judgeStatus');
     judgeStatus.className = 'log-status';
 
-    if (input.value === '' || isNaN(score) || score < 0 || score > 100) {
+    if (input.value === '' || isNaN(score) || score < 0 || score > 70) {
       judgeStatus.className = 'log-status err';
-      judgeStatus.textContent = 'Enter a score from 0 to 100.';
+      judgeStatus.textContent = 'Enter a score from 0 to 70.';
       return;
     }
 
