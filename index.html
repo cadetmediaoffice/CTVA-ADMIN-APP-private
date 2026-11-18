@@ -152,6 +152,7 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
       <button class="tab-btn" data-tab="logvotes">Log Votes</button>
       <button class="tab-btn" data-tab="judgescores">Judges' Scores</button>
       <button class="tab-btn" data-tab="export">Export</button>
+      <button class="tab-btn" data-tab="import">Import votes</button>
       <button class="tab-btn" data-tab="ticker">Ticker</button>
     </div>
 
@@ -177,6 +178,18 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
       <label style="display:flex;gap:8px;align-items:center;margin:12px 0;font-size:14px;"><input type="checkbox" id="tkOn" checked> Show the scrolling text on the home page</label>
       <button class="ex-btn" id="tkSave">Save ticker</button>
       <div class="log-status" id="tkMsg"></div>
+    </div>
+
+    <div class="pane" id="pane-import">
+      <p style="opacity:.75;font-size:13.5px;line-height:1.6;margin-bottom:10px;">Bring the vote totals (and any new Nalo codes) in from the SmartCast / Nalo dashboard. Paste the contestants table below, or choose the exported file, then press <b>Check</b>. Nothing is saved until you press <b>Apply</b>.</p>
+      <textarea id="impText" rows="7" style="width:100%;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:12px;border-radius:10px;font-size:13px;font-family:monospace;" placeholder="NAME   CATEGORY   CODE   VOTES   STATUS&#10;Kpodo Desmond   Best Sports News Reporter   CTPA14   7   ACTIVE"></textarea>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:10px 0;">
+        <input type="file" id="impFile" accept=".txt,.csv,.tsv,text/plain,text/csv" style="color:#fff;font-size:13px;max-width:100%;">
+        <button class="ex-btn" id="impCheck">Check</button>
+        <button class="ex-btn" id="impApply" disabled>Apply</button>
+      </div>
+      <div class="log-status" id="impMsg"></div>
+      <div id="impOut"></div>
     </div>
 
     <div class="pane" id="pane-export">
@@ -351,7 +364,7 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
       // Redraw the lists only when that cannot disturb what you are typing.
       const el = document.activeElement;
       if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
-      if (currentTab === 'logvotes' || currentTab === 'judgescores' || currentTab === 'ticker') return;
+      if (currentTab === 'logvotes' || currentTab === 'judgescores' || currentTab === 'ticker' || currentTab === 'import') return;
       if (currentTab === 'export') renderExport(); else render();
     } catch (e) {}
   }
@@ -411,7 +424,10 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
       document.getElementById('pane-judgescores').classList.remove('active');
       document.getElementById('pane-export').classList.remove('active');
       document.getElementById('pane-ticker').classList.remove('active');
-      if (currentTab === 'ticker') {
+      document.getElementById('pane-import').classList.remove('active');
+      if (currentTab === 'import') {
+        document.getElementById('pane-import').classList.add('active');
+      } else if (currentTab === 'ticker') {
         document.getElementById('pane-ticker').classList.add('active');
         loadTicker();
       } else if (currentTab === 'export') {
@@ -697,6 +713,70 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
       exMsg.textContent = 'Could not build the ZIP: ' + e.message;
     }
     btn.disabled = false;
+  });
+
+
+  // ---- Import votes tab (from the Nalo / SmartCast dashboard) ----
+  const impMsg = document.getElementById('impMsg'), impOut = document.getElementById('impOut'), impApply = document.getElementById('impApply');
+  let impRows = [];
+  function parseNaloText(t){
+    const rows = [], seenCodes = {};
+    t.split(/\r?\n/).forEach(line => {
+      const m = line.match(/CTPA\s?(\d{1,3})/i);
+      if (!m) {
+        // a wrapped category line such as "Reporter" belongs to the row above
+        if (rows.length && /^\s*(Anchor|Reporter|Producer|Presenter)\s*$/i.test(line)) rows[rows.length - 1].category += ' ' + line.trim();
+        return;
+      }
+      const code = 'CTPA' + String(m[1]).padStart(2, '0');
+      const before = line.slice(0, m.index), after = line.slice(m.index + m[0].length);
+      const v = after.match(/\d[\d,]*/), votes = v ? Number(v[0].replace(/,/g, '')) : 0;
+      let name, cat = '';
+      const b = before.search(/\bBest\b/i);
+      if (b >= 0) { name = before.slice(0, b); cat = before.slice(b); }
+      else { const f = before.split(/\t|,|\s{2,}/).filter(Boolean); name = f[0] || ''; cat = f.slice(1).join(' '); }
+      name = name.replace(/"/g, '').replace(/\s+/g, ' ').trim();
+      cat = cat.replace(/"/g, '').replace(/[\t,]+/g, ' ').replace(/\s+/g, ' ').trim();
+      const st = (line.match(/EVICTED|DISQUALIFIED|ACTIVE/i) || [''])[0].toUpperCase();
+      if (seenCodes[code]) return; seenCodes[code] = 1;
+      rows.push({ code, name, category: cat, votes, status: st });
+    });
+    return rows;
+  }
+  document.getElementById('impFile').addEventListener('change', e => {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader(); r.onload = () => { document.getElementById('impText').value = r.result; }; r.readAsText(f);
+  });
+  function impRender(results, applied){
+    const icon = { ready: '✅', unmatched: '❓', conflict: '⚠️', skipped: '⛔' };
+    impOut.innerHTML = '<table class="ex-table"><thead><tr><th></th><th>SmartCast</th><th>Code</th><th>Votes</th><th>Matched in your sheet</th><th>What happens</th></tr></thead><tbody>' +
+      results.map(r => '<tr><td>' + (icon[r.state] || '') + '</td><td><b>' + exEsc(r.name) + '</b><br><span style="opacity:.6;font-size:12px;">' + exEsc(r.category) + '</span></td><td>' + exEsc(r.code) + '</td><td><b>' + r.votes + '</b></td><td>' +
+        (r.sheetName ? exEsc(r.sheetName) + (r.fuzzy ? ' <span title="Similar spelling — please check" style="color:#FFD700;">(similar name)</span>' : '') + '<br><span style="opacity:.6;font-size:12px;">' + exEsc(r.sheetStatus) + '</span>' : '—') +
+        '</td><td style="font-size:12.5px;">' + exEsc(r.note || '') + (r.sheetStatus === 'pending' && r.state === 'ready' ? ' <b style="color:#FFD700;">Still Pending — approve to show publicly.</b>' : '') + '</td></tr>').join('') + '</tbody></table>';
+  }
+  document.getElementById('impCheck').addEventListener('click', async () => {
+    impRows = parseNaloText(document.getElementById('impText').value);
+    impApply.disabled = true; impOut.innerHTML = '';
+    if (!impRows.length) { impMsg.className = 'log-status err'; impMsg.textContent = 'No contestant lines found. Each line needs a code like CTPA03.'; return; }
+    impMsg.className = 'log-status ok'; impMsg.textContent = 'Checking ' + impRows.length + ' contestants…';
+    try {
+      const d = await api('importNalo', { entries: impRows, apply: false });
+      if (d.status !== 'ok') { impMsg.className = 'log-status err'; impMsg.textContent = d.message || 'Could not check.'; return; }
+      impRender(d.results);
+      const ready = d.results.filter(r => r.state === 'ready').length, other = d.results.length - ready;
+      impMsg.className = 'log-status ok';
+      impMsg.textContent = ready + ' ready to import' + (other ? ', ' + other + ' need your attention (see below)' : '') + '. Press Apply to save.';
+      impApply.disabled = !ready;
+    } catch (e) { impMsg.className = 'log-status err'; impMsg.textContent = 'Network error — try again.'; }
+  });
+  impApply.addEventListener('click', async () => {
+    impApply.disabled = true; impMsg.className = 'log-status ok'; impMsg.textContent = 'Saving…';
+    try {
+      const d = await api('importNalo', { entries: impRows, apply: true });
+      if (d.status !== 'ok') { impMsg.className = 'log-status err'; impMsg.textContent = d.message || 'Could not save.'; impApply.disabled = false; return; }
+      impMsg.className = 'log-status ok'; impMsg.textContent = 'Saved — ' + d.applied + ' nominees updated. The public pages will show the new totals within a minute.';
+      await loadAll();
+    } catch (e) { impMsg.className = 'log-status err'; impMsg.textContent = 'Network error — nothing may have been saved; press Check again.'; impApply.disabled = false; }
   });
 
   // ---- Log Votes tab ----
