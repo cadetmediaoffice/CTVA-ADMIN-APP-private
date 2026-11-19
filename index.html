@@ -181,10 +181,10 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
     </div>
 
     <div class="pane" id="pane-import">
-      <p style="opacity:.75;font-size:13.5px;line-height:1.6;margin-bottom:10px;">Bring the vote totals (and any new Nalo codes) in from the SmartCast / Nalo dashboard. Paste the contestants table below, or choose the exported file, then press <b>Check</b>. Nothing is saved until you press <b>Apply</b>.</p>
+      <p style="opacity:.75;font-size:13.5px;line-height:1.6;margin-bottom:10px;">Bring the vote totals (and any new Nalo codes) in from the SmartCast / Nalo dashboard. Paste the contestants table below, or choose the exported PDF, Excel or CSV file, then press <b>Check</b>. Nothing is saved until you press <b>Apply</b>.</p>
       <textarea id="impText" rows="7" style="width:100%;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:12px;border-radius:10px;font-size:13px;font-family:monospace;" placeholder="NAME   CATEGORY   CODE   VOTES   STATUS&#10;Kpodo Desmond   Best Sports News Reporter   CTPA14   7   ACTIVE"></textarea>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:10px 0;">
-        <input type="file" id="impFile" accept=".txt,.csv,.tsv,.xlsx,.xls,.pdf,text/plain,text/csv,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="color:#fff;font-size:13px;max-width:100%;">
+        <input type="file" id="impFile" accept=".pdf,.xlsx,.xls,.csv,.tsv,.txt" style="color:#fff;font-size:13px;max-width:100%;">
         <button class="ex-btn" id="impCheck">Check</button>
         <button class="ex-btn" id="impApply" disabled>Apply</button>
       </div>
@@ -218,8 +218,6 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
   // ⚠️ Same Apps Script Web App URL as tv_awards_register.html:
   const API_URL = 'https://script.google.com/macros/s/AKfycbxfTkqqjtjXLXekfT-fODrdU-F3SzroDSCogLnOcICh1ImtKeLKFJK7Xb6f2K4jsQ0/exec';
@@ -745,54 +743,76 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
     });
     return rows;
   }
-  function impReadBuffer(f){
-    return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsArrayBuffer(f); });
+  // Read a CSV/TXT, Excel (.xlsx/.xls) or PDF export from SmartCast into the box as plain lines.
+  function loadScript(src){
+    return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Could not load reader library (check internet).')); document.head.appendChild(s); });
   }
-  async function impExcelToText(f){
-    if (typeof XLSX === 'undefined') throw new Error('Excel reader did not load. Check your internet connection and refresh.');
-    const wb = XLSX.read(await impReadBuffer(f), { type: 'array' });
-    return wb.SheetNames.map(n => XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: false, defval: '' })
-      .map(row => row.map(c => String(c).replace(/\s+/g, ' ').trim()).join('\t')).join('\n')).join('\n');
-  }
-  async function impPdfToText(f){
-    if (typeof pdfjsLib === 'undefined') throw new Error('PDF reader did not load. Check your internet connection and refresh.');
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(await impReadBuffer(f)) }).promise;
-    const lines = [];
-    for (let p = 1; p <= pdf.numPages; p++) {
-      const items = (await (await pdf.getPage(p)).getTextContent()).items.filter(i => i.str.trim());
-      const byY = [];
-      items.forEach(i => {
-        const y = i.transform[5];
-        let row = byY.find(r => Math.abs(r.y - y) < 3);
-        if (!row) { row = { y, cells: [] }; byY.push(row); }
-        row.cells.push({ x: i.transform[4], s: i.str.trim() });
-      });
-      byY.sort((a, b) => b.y - a.y).forEach(r => lines.push(r.cells.sort((a, b) => a.x - b.x).map(c => c.s).join('\t')));
+  async function fileToText(f){
+    const name = (f.name || '').toLowerCase();
+    if (/\.(xlsx|xls|xlsm)$/.test(name)) {
+      if (!window.XLSX) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+      const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
+      return wb.SheetNames.map(n => XLSX.utils.sheet_to_csv(wb.Sheets[n], { FS: '\t' })).join('\n');
     }
-    return lines.join('\n');
+    if (/\.pdf$/.test(name)) {
+      if (!window.pdfjsLib) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      const pdf = await pdfjsLib.getDocument({ data: await f.arrayBuffer() }).promise;
+      let out = [];
+      for (let p = 1; p <= pdf.numPages; p++) {
+        const items = (await (await pdf.getPage(p)).getTextContent()).items.filter(i => i.str && i.str.trim());
+        const lines = [];
+        items.forEach(i => {
+          const y = i.transform[5];
+          let L = lines.find(l => Math.abs(l.y - y) < 3);
+          if (!L) { L = { y, parts: [] }; lines.push(L); }
+          L.parts.push({ x: i.transform[4], s: i.str });
+        });
+        lines.sort((a, b) => b.y - a.y).forEach(l => out.push(l.parts.sort((a, b) => a.x - b.x).map(q => q.s.trim()).join('  ')));
+      }
+      return out.join('\n');
+    }
+    return await f.text();
   }
   document.getElementById('impFile').addEventListener('change', async e => {
     const f = e.target.files[0]; if (!f) return;
-    const ext = (f.name.split('.').pop() || '').toLowerCase();
-    const box = document.getElementById('impText');
+    impMsg.className = 'log-status'; impMsg.textContent = 'Reading ' + f.name + '…';
     try {
-      if (ext === 'xlsx' || ext === 'xls' || ext === 'pdf') {
-        impMsg.className = 'log-status ok'; impMsg.textContent = 'Reading ' + f.name + '…';
-        box.value = ext === 'pdf' ? await impPdfToText(f) : await impExcelToText(f);
-        impMsg.textContent = box.value.trim() ? 'File read. Look over the text below, then press Check.' : 'No text found in this file. If it is a scanned PDF, paste the table instead.';
-        if (!box.value.trim()) impMsg.className = 'log-status err';
-      } else {
-        const r = new FileReader(); r.onload = () => { box.value = r.result; }; r.readAsText(f);
-      }
+      document.getElementById('impText').value = await fileToText(f);
+      impMsg.className = 'log-status ok'; impMsg.textContent = 'File read. Now press Check.';
     } catch (err) {
-      impMsg.className = 'log-status err'; impMsg.textContent = 'Could not read this file: ' + (err.message || err);
+      impMsg.className = 'log-status err'; impMsg.textContent = 'Could not read that file: ' + err.message + ' — you can also copy the table and paste it into the box.';
     }
   });
+  // Compare the uploaded counts with what is already saved, and say it plainly.
+  function impDiff(r){ return (r.state === 'ready' && typeof r.oldVotes === 'number') ? r.votes - r.oldVotes : 0; }
+  function impDiffBadge(r){
+    const d = impDiff(r);
+    if (!d) return '';
+    return d > 0 ? '<div style="color:#7CFC9A;font-size:12px;font-weight:700;">+' + d + ' new</div>'
+                 : '<div style="color:#FFB3B3;font-size:12px;font-weight:700;">' + d + ' (lower than saved)</div>';
+  }
+  function impSummaryHtml(results){
+    const up = results.filter(r => impDiff(r) > 0), down = results.filter(r => impDiff(r) < 0);
+    const total = up.reduce((a, r) => a + impDiff(r), 0);
+    let h;
+    if (!up.length && !down.length) {
+      h = '<div style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:10px;padding:12px 14px;margin:10px 0;"><b>No new vote counts.</b> Every total in this file is the same as what is already saved.</div>';
+    } else {
+      h = '<div style="background:rgba(60,200,120,0.14);border:1px solid rgba(124,252,154,0.5);border-radius:10px;padding:12px 14px;margin:10px 0;">' +
+        (up.length ? '<b>' + up.length + ' nominee' + (up.length > 1 ? 's have' : ' has') + ' new votes (+' + total + ' vote' + (total === 1 ? '' : 's') + ' in total):</b><ul style="margin:8px 0 0 18px;padding:0;line-height:1.6;">' +
+          up.sort((a, b) => impDiff(b) - impDiff(a)).map(r => '<li><b>' + exEsc(r.sheetName || r.name) + '</b> (' + exEsc(r.category) + ') — ' + r.oldVotes + ' → ' + r.votes + ' <b style="color:#7CFC9A;">(+' + impDiff(r) + ')</b></li>').join('') + '</ul>' : '<b>No new vote counts.</b>') +
+        (down.length ? '<div style="margin-top:8px;color:#FFB3B3;">⚠ ' + down.length + ' nominee' + (down.length > 1 ? 's show' : ' shows') + ' fewer votes than saved — is this an older file? ' + down.map(r => exEsc(r.sheetName || r.name) + ' (' + r.oldVotes + ' → ' + r.votes + ')').join(', ') + '</div>' : '') +
+        '</div>';
+    }
+    const unm = results.filter(r => r.state === 'unmatched' || r.state === 'conflict');
+    if (unm.length) h += '<div style="color:#FFD700;font-size:13px;margin:6px 0;">' + unm.length + ' line' + (unm.length > 1 ? 's' : '') + ' could not be matched or conflict — see the table below.</div>';
+    return h;
+  }
   function impRender(results, applied){
     const icon = { ready: '✅', unmatched: '❓', conflict: '⚠️', skipped: '⛔' };
-    impOut.innerHTML = '<table class="ex-table"><thead><tr><th></th><th>SmartCast</th><th>Code</th><th>Votes</th><th>Matched in your sheet</th><th>What happens</th></tr></thead><tbody>' +
-      results.map(r => '<tr><td>' + (icon[r.state] || '') + '</td><td><b>' + exEsc(r.name) + '</b><br><span style="opacity:.6;font-size:12px;">' + exEsc(r.category) + '</span></td><td>' + exEsc(r.code) + '</td><td><b>' + r.votes + '</b></td><td>' +
+    impOut.innerHTML = (applied ? '' : impSummaryHtml(results)) + '<table class="ex-table"><thead><tr><th></th><th>SmartCast</th><th>Code</th><th>Votes</th><th>Matched in your sheet</th><th>What happens</th></tr></thead><tbody>' +
+      results.map(r => '<tr><td>' + (icon[r.state] || '') + '</td><td><b>' + exEsc(r.name) + '</b><br><span style="opacity:.6;font-size:12px;">' + exEsc(r.category) + '</span></td><td>' + exEsc(r.code) + '</td><td><b>' + r.votes + '</b>' + impDiffBadge(r) + '</td><td>' +
         (r.sheetName ? exEsc(r.sheetName) + (r.fuzzy ? ' <span title="Similar spelling — please check" style="color:#FFD700;">(similar name)</span>' : '') + '<br><span style="opacity:.6;font-size:12px;">' + exEsc(r.sheetStatus) + '</span>' : '—') +
         '</td><td style="font-size:12.5px;">' + exEsc(r.note || '') + (r.sheetStatus === 'pending' && r.state === 'ready' ? ' <b style="color:#FFD700;">Still Pending — approve to show publicly.</b>' : '') + '</td></tr>').join('') + '</tbody></table>';
   }
@@ -806,9 +826,11 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
       if (d.status !== 'ok') { impMsg.className = 'log-status err'; impMsg.textContent = d.message || 'Could not check.'; return; }
       impRender(d.results);
       const ready = d.results.filter(r => r.state === 'ready').length, other = d.results.length - ready;
+      const changed = d.results.filter(r => impDiff(r) !== 0 || (r.state === 'ready' && !r.oldCode)).length;
       impMsg.className = 'log-status ok';
-      impMsg.textContent = ready + ' ready to import' + (other ? ', ' + other + ' need your attention (see below)' : '') + '. Press Apply to save.';
-      impApply.disabled = !ready;
+      impMsg.textContent = changed ? (changed + ' nominee' + (changed > 1 ? 's' : '') + ' with new information' + (other ? ', ' + other + ' need your attention' : '') + '. Press Apply to save.')
+                                    : ('No new vote counts.' + (other ? ' ' + other + ' need your attention (see below).' : ''));
+      impApply.disabled = !changed;
     } catch (e) { impMsg.className = 'log-status err'; impMsg.textContent = 'Network error — try again.'; }
   });
   impApply.addEventListener('click', async () => {
@@ -816,7 +838,7 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
     try {
       const d = await api('importNalo', { entries: impRows, apply: true });
       if (d.status !== 'ok') { impMsg.className = 'log-status err'; impMsg.textContent = d.message || 'Could not save.'; impApply.disabled = false; return; }
-      impMsg.className = 'log-status ok'; impMsg.textContent = 'Saved — ' + d.applied + ' nominees updated. The public pages will show the new totals within a minute.';
+      impMsg.className = 'log-status ok'; impMsg.textContent = 'Saved — ' + d.applied + ' nominee' + (d.applied === 1 ? '' : 's') + ' updated. The public pages will show the new totals within a minute.';
       await loadAll();
     } catch (e) { impMsg.className = 'log-status err'; impMsg.textContent = 'Network error — nothing may have been saved; press Check again.'; impApply.disabled = false; }
   });
