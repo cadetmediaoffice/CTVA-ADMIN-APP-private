@@ -153,6 +153,7 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
       <button class="tab-btn" data-tab="judgescores">Judges' Scores</button>
       <button class="tab-btn" data-tab="export">Export</button>
       <button class="tab-btn" data-tab="import">Import votes</button>
+      <button class="tab-btn" data-tab="visibility">Results visibility</button>
       <button class="tab-btn" data-tab="ticker">Ticker</button>
     </div>
 
@@ -178,6 +179,17 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
       <label style="display:flex;gap:8px;align-items:center;margin:12px 0;font-size:14px;"><input type="checkbox" id="tkOn" checked> Show the scrolling text on the home page</label>
       <button class="ex-btn" id="tkSave">Save ticker</button>
       <div class="log-status" id="tkMsg"></div>
+    </div>
+
+
+    <div class="pane" id="pane-visibility">
+      <p style="opacity:.75;font-size:13.5px;line-height:1.6;margin-bottom:12px;">Choose whether the public can see vote counts on the website (Vote Results, Nominees and a nominee's own result check). Hidden counts are removed on the server, so nobody can find them in the page. <b>You still see everything in this admin.</b> This does not change the SmartCast / Nalo platform.</p>
+      <div id="visNow" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:10px;padding:12px 14px;margin-bottom:12px;font-size:15px;">Loading…</div>
+      <label style="display:block;padding:10px 12px;border:1px solid rgba(255,255,255,0.2);border-radius:10px;margin-bottom:8px;cursor:pointer;"><input type="radio" name="visMode" value="show"> <b>Show vote counts</b> <span style="opacity:.7">— everyone can see them</span></label>
+      <label style="display:block;padding:10px 12px;border:1px solid rgba(255,255,255,0.2);border-radius:10px;margin-bottom:8px;cursor:pointer;"><input type="radio" name="visMode" value="hide"> <b>Hide vote counts</b> <span style="opacity:.7">— hidden until you switch back</span></label>
+      <label style="display:block;padding:10px 12px;border:1px solid rgba(255,255,255,0.2);border-radius:10px;margin-bottom:12px;cursor:pointer;"><input type="radio" name="visMode" value="weekend"> <b>Weekends only</b> <span style="opacity:.7">— shown on Saturday and Sunday (GMT), hidden Monday to Friday, automatically</span></label>
+      <button class="ex-btn" id="visSave">Save</button>
+      <div class="log-status" id="visMsg"></div>
     </div>
 
     <div class="pane" id="pane-import">
@@ -364,7 +376,7 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
       // Redraw the lists only when that cannot disturb what you are typing.
       const el = document.activeElement;
       if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
-      if (currentTab === 'logvotes' || currentTab === 'judgescores' || currentTab === 'ticker' || currentTab === 'import') return;
+      if (currentTab === 'logvotes' || currentTab === 'judgescores' || currentTab === 'ticker' || currentTab === 'import' || currentTab === 'visibility') return;
       if (currentTab === 'export') renderExport(); else render();
     } catch (e) {}
   }
@@ -425,7 +437,11 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
       document.getElementById('pane-export').classList.remove('active');
       document.getElementById('pane-ticker').classList.remove('active');
       document.getElementById('pane-import').classList.remove('active');
-      if (currentTab === 'import') {
+      document.getElementById('pane-visibility').classList.remove('active');
+      if (currentTab === 'visibility') {
+        document.getElementById('pane-visibility').classList.add('active');
+        loadVisibility();
+      } else if (currentTab === 'import') {
         document.getElementById('pane-import').classList.add('active');
       } else if (currentTab === 'ticker') {
         document.getElementById('pane-ticker').classList.add('active');
@@ -841,6 +857,32 @@ table.ex-table{width:100%;border-collapse:collapse;font-size:13.5px;}
       impMsg.className = 'log-status ok'; impMsg.textContent = 'Saved — ' + d.applied + ' nominee' + (d.applied === 1 ? '' : 's') + ' updated. The public pages will show the new totals within a minute.';
       await loadAll();
     } catch (e) { impMsg.className = 'log-status err'; impMsg.textContent = 'Network error — nothing may have been saved; press Check again.'; impApply.disabled = false; }
+  });
+
+  // ---- Results visibility tab ----
+  function visNowText(mode, visible){
+    const m = { show: 'Always shown', hide: 'Hidden', weekend: 'Weekends only' }[mode] || mode;
+    return 'Setting: <b>' + m + '</b><br>Right now the public sees: <b style="color:' + (visible ? '#7CFC9A' : '#FFB3B3') + ';">' + (visible ? 'vote counts' : 'no vote counts (hidden)') + '</b>';
+  }
+  async function loadVisibility(){
+    const box = document.getElementById('visNow');
+    try {
+      const d = await api('getResultsMode');
+      if (d.status !== 'ok') { box.textContent = 'Could not load the setting. Deploy the latest Code.gs as a new version first.'; return; }
+      box.innerHTML = visNowText(d.mode, d.visible);
+      document.querySelectorAll('input[name="visMode"]').forEach(r => { r.checked = (r.value === d.mode); });
+    } catch (e) { box.textContent = 'Network error — try again.'; }
+  }
+  document.getElementById('visSave').addEventListener('click', async () => {
+    const sel = document.querySelector('input[name="visMode"]:checked'), msg = document.getElementById('visMsg');
+    if (!sel) { msg.className = 'log-status err'; msg.textContent = 'Choose an option first.'; return; }
+    msg.className = 'log-status'; msg.textContent = 'Saving…';
+    try {
+      const d = await api('setResultsMode', { mode: sel.value });
+      if (d.status !== 'ok') { msg.className = 'log-status err'; msg.textContent = d.message || 'Could not save.'; return; }
+      msg.className = 'log-status ok'; msg.textContent = 'Saved. The public pages follow this within about a minute.';
+      document.getElementById('visNow').innerHTML = visNowText(d.mode, d.visible);
+    } catch (e) { msg.className = 'log-status err'; msg.textContent = 'Network error — try again.'; }
   });
 
   // ---- Log Votes tab ----
